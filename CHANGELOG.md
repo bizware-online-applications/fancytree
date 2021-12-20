@@ -1,3 +1,11 @@
+# 2.39.0 / Unreleased
+  * [Changed] ext-edit:
+    * Added property, spanClass options to so that ext-edit could be used
+      with ext-grid to edit columns other than title. Default behavior is unchanged.
+  * [Added] node.getProperty and node.setProperty for use with the ext-edit property
+    option. Allows properties on the node object to be accessed using an array of keys
+    (eg node.data.yourProperty is node.getProperty(["data", "yourProperty"])).
+
 # 2.38.1-0 / Unreleased
   * Replace deprecated jQuery functions: `$.isArray()`, `$.isFunction()`,
     `$.trim()`, `$().click()`

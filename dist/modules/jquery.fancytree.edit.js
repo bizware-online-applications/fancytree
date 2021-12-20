@@ -1,7 +1,7 @@
 /*!
  * jquery.fancytree.edit.js
  *
- * Make node titles editable.
+ * Make node properties editable.
  * (Extension module for jquery.fancytree.js: https://github.com/mar10/fancytree/)
  *
  * Copyright (c) 2008-2021, Martin Wendt (https://wwWendt.de)
@@ -9,11 +9,11 @@
  * Released under the MIT license
  * https://github.com/mar10/fancytree/wiki/LicenseInfo
  *
- * @version 2.38.0
- * @date 2021-02-09T20:03:49Z
+ * @version 2.39.0
+ * @date 2021-12-20T00:39:55Z
  */
 
-(function(factory) {
+(function (factory) {
 	if (typeof define === "function" && define.amd) {
 		// AMD. Register as an anonymous module.
 		define(["jquery", "./jquery.fancytree"], factory);
@@ -25,7 +25,7 @@
 		// Browser globals
 		factory(jQuery);
 	}
-})(function($) {
+})(function ($) {
 	"use strict";
 
 	/*******************************************************************************
@@ -34,21 +34,23 @@
 
 	var isMac = /Mac/.test(navigator.platform),
 		escapeHtml = $.ui.fancytree.escapeHtml,
+		trim = $.ui.fancytree.trim,
 		unescapeHtml = $.ui.fancytree.unescapeHtml;
 
 	/**
-	 * [ext-edit] Start inline editing of current node title.
+	 * [ext-edit] Start inline editing of current node property.
 	 *
 	 * @alias FancytreeNode#editStart
 	 * @requires Fancytree
 	 */
-	$.ui.fancytree._FancytreeNodeClass.prototype.editStart = function() {
+	$.ui.fancytree._FancytreeNodeClass.prototype.editStart = function () {
 		var $input,
 			node = this,
 			tree = this.tree,
 			local = tree.ext.edit,
 			instOpts = tree.options.edit,
-			$title = $(".fancytree-title", node.span),
+			propertyContext = node.tr ? node.tr : node.span,
+			$property = $(instOpts.spanClass, propertyContext),
 			eventData = {
 				node: node,
 				tree: tree,
@@ -56,12 +58,12 @@
 				isNew: $(node[tree.statusClassPropName]).hasClass(
 					"fancytree-edit-new"
 				),
-				orgTitle: node.title,
+				originalProperty: node.getProperty(instOpts.property),
 				input: null,
 				dirty: false,
 			};
 
-		// beforeEdit may want to modify the title before editing
+		// beforeEdit may want to modify the property before editing
 		if (
 			instOpts.beforeEdit.call(
 				node,
@@ -84,7 +86,7 @@
 		}
 
 		// #116: ext-dnd prevents the blur event, so we have to catch outer clicks
-		$(document).on("mousedown.fancytree-edit", function(event) {
+		$(document).on("mousedown.fancytree-edit", function (event) {
 			if (!$(event.target).hasClass("fancytree-edit-input")) {
 				node.editEnd(true, event);
 			}
@@ -95,26 +97,26 @@
 			class: "fancytree-edit-input",
 			type: "text",
 			value: tree.options.escapeTitles
-				? eventData.orgTitle
-				: unescapeHtml(eventData.orgTitle),
+				? eventData.originalProperty
+				: unescapeHtml(eventData.originalProperty),
 		});
 		local.eventData.input = $input;
 		if (instOpts.adjustWidthOfs != null) {
-			$input.width($title.width() + instOpts.adjustWidthOfs);
+			$input.width($property.width() + instOpts.adjustWidthOfs);
 		}
 		if (instOpts.inputCss != null) {
 			$input.css(instOpts.inputCss);
 		}
 
-		$title.html($input);
+		$property.html($input);
 
 		// Focus <input> and bind keyboard handler
 		$input
 			.focus()
-			.change(function(event) {
+			.change(function (event) {
 				$input.addClass("fancytree-edit-dirty");
 			})
-			.on("keydown", function(event) {
+			.on("keydown", function (event) {
 				switch (event.which) {
 					case $.ui.keyCode.ESCAPE:
 						node.editEnd(false, event);
@@ -125,7 +127,7 @@
 				}
 				event.stopPropagation();
 			})
-			.blur(function(event) {
+			.blur(function (event) {
 				return node.editEnd(true, event);
 			});
 
@@ -138,7 +140,7 @@
 	 * @alias FancytreeNode#editEnd
 	 * @requires jquery.fancytree.edit.js
 	 */
-	$.ui.fancytree._FancytreeNodeClass.prototype.editEnd = function(
+	$.ui.fancytree._FancytreeNodeClass.prototype.editEnd = function (
 		applyChanges,
 		_event
 	) {
@@ -148,15 +150,16 @@
 			local = tree.ext.edit,
 			eventData = local.eventData,
 			instOpts = tree.options.edit,
-			$title = $(".fancytree-title", node.span),
-			$input = $title.find("input.fancytree-edit-input");
+			propertyContext = node.tr ? node.tr : node.span,
+			$property = $(instOpts.spanClass, propertyContext),
+			$input = $property.find("input.fancytree-edit-input");
 
 		if (instOpts.trim) {
-			$input.val($.trim($input.val()));
+			$input.val(trim($input.val()));
 		}
 		newVal = $input.val();
 
-		eventData.dirty = newVal !== node.title;
+		eventData.dirty = newVal !== node.getProperty(instOpts.property);
 		eventData.originalEvent = _event;
 
 		// Find out, if saving is required
@@ -192,7 +195,8 @@
 
 		if (eventData.save) {
 			// # 171: escape user input (not required if global escaping is on)
-			node.setTitle(
+			node.setProperty(
+				instOpts.property,
 				tree.options.escapeTitles ? newVal : escapeHtml(newVal)
 			);
 			node.setFocus();
@@ -232,7 +236,7 @@
 	 * @requires jquery.fancytree.edit.js
 	 * @since 2.4
 	 */
-	$.ui.fancytree._FancytreeNodeClass.prototype.editCreateNode = function(
+	$.ui.fancytree._FancytreeNodeClass.prototype.editCreateNode = function (
 		mode,
 		init
 	) {
@@ -254,7 +258,7 @@
 			!this.isExpanded() &&
 			this.hasChildren() !== false
 		) {
-			this.setExpanded().done(function() {
+			this.setExpanded().done(function () {
 				self.editCreateNode(mode, init);
 			});
 			return;
@@ -267,7 +271,7 @@
 			.removeClass("fancytree-hide")
 			.addClass("fancytree-match");
 
-		newNode.makeVisible(/*{noAnimation: true}*/).done(function() {
+		newNode.makeVisible(/*{noAnimation: true}*/).done(function () {
 			$(newNode[tree.statusClassPropName]).addClass("fancytree-edit-new");
 			self.tree.ext.edit.relatedNode = self;
 			newNode.editStart();
@@ -281,7 +285,7 @@
 	 * @alias Fancytree#isEditing
 	 * @requires jquery.fancytree.edit.js
 	 */
-	$.ui.fancytree._FancytreeClass.prototype.isEditing = function() {
+	$.ui.fancytree._FancytreeClass.prototype.isEditing = function () {
 		return this.ext.edit ? this.ext.edit.currentNode : null;
 	};
 
@@ -291,7 +295,7 @@
 	 * @alias FancytreeNode#isEditing
 	 * @requires jquery.fancytree.edit.js
 	 */
-	$.ui.fancytree._FancytreeNodeClass.prototype.isEditing = function() {
+	$.ui.fancytree._FancytreeNodeClass.prototype.isEditing = function () {
 		return this.tree.ext.edit
 			? this.tree.ext.edit.currentNode === this
 			: false;
@@ -302,12 +306,14 @@
 	 */
 	$.ui.fancytree.registerExtension({
 		name: "edit",
-		version: "2.38.0",
+		version: "2.39.0",
 		// Default options for this extension.
 		options: {
 			adjustWidthOfs: 4, // null: don't adjust input size to content
 			allowEmpty: false, // Prevent empty input
 			inputCss: { minWidth: "3em" },
+			property: ["title"], // node object [keys] to access property to update
+			spanClass: ".fancytree-title", // class of the editable span
 			// triggerCancel: ["esc", "tab", "click"],
 			triggerStart: ["f2", "mac+enter", "shift+click"],
 			trim: true, // Trim whitespace before save
@@ -322,14 +328,14 @@
 		// Local attributes
 		currentNode: null,
 
-		treeInit: function(ctx) {
+		treeInit: function (ctx) {
 			var tree = ctx.tree;
 
 			this._superApply(arguments);
 
 			this.$container
 				.addClass("fancytree-ext-edit")
-				.on("fancytreebeforeupdateviewport", function(event, data) {
+				.on("fancytreebeforeupdateviewport", function (event, data) {
 					var editNode = tree.isEditing();
 					// When scrolling, the TR may be re-used by another node, so the
 					// active cell marker an
@@ -339,7 +345,7 @@
 					}
 				});
 		},
-		nodeClick: function(ctx) {
+		nodeClick: function (ctx) {
 			var eventStr = $.ui.fancytree.eventToString(ctx.originalEvent),
 				triggerStart = ctx.options.edit.triggerStart;
 
@@ -356,11 +362,13 @@
 				eventStr === "click" &&
 				$.inArray("clickActive", triggerStart) >= 0
 			) {
-				// Only when click was inside title text (not aynwhere else in the row)
+				// Only when click was inside property text (not aynwhere else in the row)
 				if (
 					ctx.node.isActive() &&
 					!ctx.node.isEditing() &&
-					$(ctx.originalEvent.target).hasClass("fancytree-title")
+					$(ctx.originalEvent.target).hasClass(
+						ctx.options.edit.spanClass
+					)
 				) {
 					ctx.node.editStart();
 					return false;
@@ -368,14 +376,14 @@
 			}
 			return this._superApply(arguments);
 		},
-		nodeDblclick: function(ctx) {
+		nodeDblclick: function (ctx) {
 			if ($.inArray("dblclick", ctx.options.edit.triggerStart) >= 0) {
 				ctx.node.editStart();
 				return false;
 			}
 			return this._superApply(arguments);
 		},
-		nodeKeydown: function(ctx) {
+		nodeKeydown: function (ctx) {
 			switch (ctx.originalEvent.which) {
 				case 113: // [F2]
 					if ($.inArray("f2", ctx.options.edit.triggerStart) >= 0) {
